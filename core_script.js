@@ -1,47 +1,63 @@
-// افترض أن window.productId موجود و window.storeId موجود
-(async function() {
-  const containerId = 'recomiq-slider-container';
-  
-  // حذف السلايدر القديم إذا موجود
-  let oldContainer = document.getElementById(containerId);
-  if (oldContainer) oldContainer.remove();
+(function() {
+    const CONTAINER_ID = 'recomiq-products-slider';
 
-  // إنشاء container جديد
-  const container = document.createElement('div');
-  container.id = containerId;
-  document.body.appendChild(container);
+    async function addProductsSlider() {
+        // احذف القديم
+        let container = document.getElementById(CONTAINER_ID);
+        if (container) {
+            container.innerHTML = '';
+            container.remove();
+        }
 
-  try {
-    const response = await fetch('https://your-backend-api.com/recommendations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        storeId: window.storeId || 'dev-xik0qt9qmcdedza5',
-        productId: window.productId || '',
-        userId: window.userId || ''
-      })
-    });
+        container = document.createElement('div');
+        container.id = CONTAINER_ID;
+        document.body.appendChild(container);
 
-    const products = await response.json();
+        // إعداد بيانات الطلب
+        const payload = {
+            storeId: window.storeId || '',
+            productId: window.productId || '',
+            userId: window.userId || ''
+        };
 
-    if (Array.isArray(products) && products.length) {
-      const slider = document.createElement('salla-products-slider');
-      slider.setAttribute('source', 'custom');
-      slider.setAttribute('source-value', products.join(','));
-      slider.setAttribute('limit', '10');
-      slider.setAttribute('block-title', 'منتجات مقترحة');
+        let products = [];
 
-      container.appendChild(slider);
-    } else {
-      throw new Error('No products received');
+        try {
+            const res = await fetch('https://your-api-endpoint.com/recommend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) products = await res.json();
+        } catch (e) {
+            console.warn('Recomiq: Failed to fetch products, using fallback.', e);
+        }
+
+        // إذا لم توجد استجابة، استخدم fallback
+        if (!products || !products.length) {
+            const slider = document.createElement('salla-products-slider');            
+            slider.setAttribute('source', 'related');            
+            slider.setAttribute('source-value', window.productId || '');            
+            slider.setAttribute('limit', '10');            
+            slider.setAttribute('block-title', 'منتجات مشابهة');            
+            container.appendChild(slider);
+            return;
+        }
+
+        // إنشاء سلايدر ديناميكي بالمنتجات من المصفوفة
+        const slider = document.createElement('salla-products-slider');
+        slider.setAttribute('source', 'manual');
+        slider.setAttribute('source-value', products.join(',')); 
+        slider.setAttribute('limit', products.length);
+        slider.setAttribute('block-title', 'منتجات مقترحة');
+        container.appendChild(slider);
     }
-  } catch (e) {
-    // fallback: إنشاء سلايدر افتراضي
-    const slider = document.createElement('salla-products-slider');            
-    slider.setAttribute('source', 'related');            
-    slider.setAttribute('source-value', window.productId || '');            
-    slider.setAttribute('limit', '10');            
-    slider.setAttribute('block-title', 'منتجات مشابهة');            
-    container.appendChild(slider);
-  }
+
+    // شغل السلايدر عند كل تغيير مهم في الصفحة
+    if (window.Salla && Salla.onReady) {
+        Salla.onReady(addProductsSlider);
+    } else {
+        document.addEventListener('DOMContentLoaded', addProductsSlider);
+    }
 })();
