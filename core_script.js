@@ -1,111 +1,47 @@
-(function () {
+// افترض أن window.productId موجود و window.storeId موجود
+(async function() {
+  const containerId = 'recomiq-slider-container';
+  
+  // حذف السلايدر القديم إذا موجود
+  let oldContainer = document.getElementById(containerId);
+  if (oldContainer) oldContainer.remove();
 
-    // 🔒 منع التكرار
-    if (window.__MY_SLIDER_CORE__) return;
-    window.__MY_SLIDER_CORE__ = true;
+  // إنشاء container جديد
+  const container = document.createElement('div');
+  container.id = containerId;
+  document.body.appendChild(container);
 
-    const currentScript = document.currentScript;
-
-    const STORE_ID = currentScript?.dataset.storeId || '';
-    let USER_ID = '';
-
-    let lastProductId = null;
-
-    function getCurrentProductId() {
-        return window.productId || null;
-    }
-
-    function deleteOldSlider() {
-        const old = document.getElementById('custom-product-slider');
-        if (old) old.remove();
-    }
-
-    function createCustomSlider(productIds) {
-        deleteOldSlider();
-
-        const container = document.createElement('div');
-        container.id = 'custom-product-slider';
-
-        const slider = document.createElement('salla-products-slider');
-
-        productIds.forEach(id => {
-            const card = document.createElement('salla-product-card');
-            card.setAttribute('data-product-id', id);
-            slider.appendChild(card);
-        });
-
-        container.appendChild(slider);
-        document.body.appendChild(container);
-    }
-
-    function createFallbackSlider(productId) {
-        deleteOldSlider();
-
-        const container = document.createElement('div');
-        container.id = 'custom-product-slider';
-
-        const slider = document.createElement('salla-products-slider');            
-        slider.setAttribute('source', 'related');            
-        slider.setAttribute('source-value', productId);            
-        slider.setAttribute('limit', '10');            
-        slider.setAttribute('block-title', 'منتجات مشابهة');            
-
-        container.appendChild(slider);
-        document.body.appendChild(container);
-    }
-
-    async function fetchSliderProducts() {
-        const productId = getCurrentProductId();
-
-        if (!productId || productId === lastProductId) return;
-        lastProductId = productId;
-
-        try {
-            const response = await fetch('https://api.example.com/get-products', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    storeId: STORE_ID,
-                    productId,
-                    userId: USER_ID
-                })
-            });
-
-            const data = await response.json();
-
-            if (Array.isArray(data.productIds) && data.productIds.length) {
-                createCustomSlider(data.productIds);
-            } else {
-                createFallbackSlider(productId);
-            }
-
-        } catch (e) {
-            createFallbackSlider(productId);
-        }
-    }
-
-    // 🔥 debounce
-    let timeout;
-    function safeRun() {
-        clearTimeout(timeout);
-        timeout = setTimeout(fetchSliderProducts, 300);
-    }
-
-    // 🔥 مراقبة الصفحة
-    const observer = new MutationObserver(() => {
-        safeRun();
+  try {
+    const response = await fetch('https://your-backend-api.com/recommendations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storeId: window.storeId || 'dev-xik0qt9qmcdedza5',
+        productId: window.productId || '',
+        userId: window.userId || ''
+      })
     });
 
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
+    const products = await response.json();
 
-    // 🔥 تشغيل أولي
-    if (window.Salla) {
-        Salla.onReady(() => safeRun());
+    if (Array.isArray(products) && products.length) {
+      const slider = document.createElement('salla-products-slider');
+      slider.setAttribute('source', 'custom');
+      slider.setAttribute('source-value', products.join(','));
+      slider.setAttribute('limit', '10');
+      slider.setAttribute('block-title', 'منتجات مقترحة');
+
+      container.appendChild(slider);
     } else {
-        safeRun();
+      throw new Error('No products received');
     }
-
+  } catch (e) {
+    // fallback: إنشاء سلايدر افتراضي
+    const slider = document.createElement('salla-products-slider');            
+    slider.setAttribute('source', 'related');            
+    slider.setAttribute('source-value', window.productId || '');            
+    slider.setAttribute('limit', '10');            
+    slider.setAttribute('block-title', 'منتجات مشابهة');            
+    container.appendChild(slider);
+  }
 })();
